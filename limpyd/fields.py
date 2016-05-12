@@ -23,6 +23,7 @@ __all__ = [
     'MetaRedisProxy',
     'SortedSetField',
     'StringField',
+    'IntegerField',
     'ListField',
     'SetField',
     'PKField',
