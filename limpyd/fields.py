@@ -80,6 +80,15 @@ class MetaRedisProxy(type):
                 if not hasattr(it, command_name):
                     setattr(it, command_name, it._make_command_method(command_name))
 
+            to_python = dct.get("to_python")
+            if to_python:
+                for command_name in it.available_getters:
+                    cmd_method = getattr(it, command_name)
+                    def wrapper(self, *args, **kwargs):
+                        result = cmd_method(self, *args, **kwargs)
+                        return to_python(result)
+                    setattr(it, command_name, wrapper)
+
         return it
 
 
@@ -553,6 +562,11 @@ class StringField(SingleValueField):
         if self.indexable and value is not None and result:
             self.index(value)
         return result
+
+
+class IntegerField(StringField):
+    to_python = int
+    available_getters = ("get",)
 
 
 class MultiValuesField(RedisField):
