@@ -86,8 +86,18 @@ class MetaRedisProxy(type):
                 for command_name in it.available_getters:
                     cmd_method = getattr(it, command_name)
                     def wrapper(self, *args, **kwargs):
+                        print(dict(self=self, args=args, kwargs=kwargs))
                         result = cmd_method(self, *args, **kwargs)
                         return to_python(result)
+                    setattr(it, command_name, wrapper)
+
+            to_storage = dct.get("to_storage")
+            if to_storage:
+                for command_name in it.available_modifiers:
+                    cmd_method = getattr(it, command_name)
+                    def wrapper(self, *args, **kwargs):
+                        result = cmd_method(self, *args, **kwargs)
+                        return to_storage(result)
                     setattr(it, command_name, wrapper)
 
         return it
