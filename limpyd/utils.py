@@ -32,3 +32,19 @@ def normalize(value):
     if value and isinstance(value, bytes):
         value = value.decode('utf-8')
     return value
+
+
+def incr_list(li, step=None):
+    """
+    :param li: list of numbers
+    :param step:
+    :yields: values from list, incremented by step at the end of the list
+    """
+    if step is None:
+        step = len(li)
+    offset = 0
+    while True:
+        for p in li:
+            yield offset + p
+            offset += step
+

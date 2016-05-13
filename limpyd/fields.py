@@ -1,5 +1,8 @@
 # -*- coding:utf-8 -*-
 from __future__ import unicode_literals
+
+from enum import Enum
+
 from future.utils import iteritems, iterkeys
 from future.builtins import str
 from future.builtins import zip
@@ -31,6 +34,13 @@ __all__ = [
     'HashField',
 ]
 
+def find_method(cls, name):
+    m = getattr(cls, name, None)
+    if m is not None:
+        return m
+    while cls.__bases__:
+        for klass in cls.__bases__:
+            return find_method(klass, name)
 
 class MetaRedisProxy(type):
     """
@@ -76,30 +86,16 @@ class MetaRedisProxy(type):
             # add simplest set: getters, modidiers, all
             it.available_commands = it.available_getters.union(it.available_modifiers)
 
-            # create a method for each command
-            for command_name in it.available_commands:
-                if not hasattr(it, command_name):
+            def no_change(self, value):
+                return value
+
+            it.to_python = dct.get("to_python", no_change)
+            it.to_storage = dct.get("to_storage", no_change)
+
+            override_make_command = dct.get("override_make_command", False)
+            for command_name in sorted(it.available_commands):
+                if override_make_command or not hasattr(it, command_name):
                     setattr(it, command_name, it._make_command_method(command_name))
-
-            to_python = dct.get("to_python")
-            if to_python:
-                for command_name in it.available_getters:
-                    cmd_method = getattr(it, command_name)
-                    def wrapper(self, *args, **kwargs):
-                        print(dict(self=self, args=args, kwargs=kwargs))
-                        result = cmd_method(self, *args, **kwargs)
-                        return to_python(result)
-                    setattr(it, command_name, wrapper)
-
-            to_storage = dct.get("to_storage")
-            if to_storage:
-                for command_name in it.available_modifiers:
-                    cmd_method = getattr(it, command_name)
-                    def wrapper(self, *args, **kwargs):
-                        result = cmd_method(self, *args, **kwargs)
-                        return to_storage(result)
-                    setattr(it, command_name, wrapper)
-
         return it
 
 
@@ -111,8 +107,20 @@ class RedisProxyCommand(with_metaclass(MetaRedisProxy)):
         Return a function which call _call_command for the given name.
         Used to bind redis commands to our own calls
         """
+        # if command_name not in TRANSFORMABLE_COMMANDS:
+        #     def func(self, *args, **kwargs):
+        #         print("_call_command: ", command_name, *args, **kwargs)
+        #         return self._call_command(command_name, *args, **kwargs)
+        # elif command_name in TO_PYTHON and command_name in TO_REDIS:
+        #     def func(self, *args, **kwargs):
+        #         value = self.to_stor
+        # if command_name in TO_PYTHON:
+        #     def wrapped_f(self, *args, **kwargs):
+
         def func(self, *args, **kwargs):
+            print(cls, self, "classic _make_command: ", command_name, *args, **kwargs)
             return self._call_command(command_name, *args, **kwargs)
+
         return func
 
     def _call_command(self, name, *args, **kwargs):
@@ -137,6 +145,7 @@ class RedisProxyCommand(with_metaclass(MetaRedisProxy)):
         Add the key to the args and call the Redis command.
         """
         if not name in self.available_commands:
+            print(self.available_commands)
             raise AttributeError("%s is not an available command for %s" %
                                  (name, self.__class__.__name__))
         attr = getattr(self.connection, "%s" % name)
@@ -576,7 +585,9 @@ class StringField(SingleValueField):
 
 
 class IntegerField(StringField):
-    to_python = int
+    def to_python(self, value):
+        return int(value)
+
     available_getters = ("get",)
 
 
